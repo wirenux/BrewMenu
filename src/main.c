@@ -214,10 +214,25 @@ void install_packages(int max_y, int max_x, const char *pkg_name) {
     }
     pclose(fp);
 
-    mvwprintw(ins_win, 4, 4, "");
-    mvwprintw(ins_win, 4, 4, "Status: Finished! Press any key...");
-    getch();
+    mvwprintw(ins_win, 4, 4, "                                                          ");
+    
+    refresh();
+    wrefresh(ins_win);
     delwin(ins_win);
+
+    int pop_h = 5;
+    int pop_w = 40;
+    WINDOW *pop_win = create_shadowed_window(max_y, max_x, pop_h, pop_w, "Success");
+
+    if (pop_win != NULL) {
+        const char *success_msg = "Package installed successfully!";
+        mvwprintw(pop_win, 2, (pop_w - (int)strlen(success_msg)) / 2, "%s", success_msg);
+
+        refresh();
+        wrefresh(pop_win);
+        getch();
+        delwin(pop_win);
+    }
 }
 
 void search_packages(int max_y, int max_x) {
