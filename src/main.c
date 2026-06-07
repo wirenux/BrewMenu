@@ -470,7 +470,7 @@ int main(void) {
         } else if (ch == '\n' ||ch == KEY_ENTER || ch == '\r') {
             if (selected_index == 0) {
                 search_packages(max_y, max_x);
-            } else if (selected_index == 2) {
+            } else if (selected_index == 1) {
                 view_installed_packages(max_y, max_x);
             } else {
                 erase();
