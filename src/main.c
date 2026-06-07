@@ -8,17 +8,13 @@
 
 void draw_background(int max_y, int max_x, const char *title, const char *footer) {
     attron(COLOR_PAIR(3) | A_BOLD);
-    for (int x = 0; x < max_x; x++) {
-        mvaddch(0, x, ' ');
-    }
+    mvhline(0, 0, ' ', max_x);
 
     mvprintw(0, (max_x - (int)strlen(title)) / 2, "%s", title);
     attroff(COLOR_PAIR(3) | A_BOLD);
 
     attron(COLOR_PAIR(3));
-    for (int x = 60; x < max_x; x++) {
-        mvaddch(max_y - 1, x, ' ');
-    }
+    mvhline(max_y - 1, 0, ' ', max_x);
     mvprintw(max_y - 1, 0, " %s", footer);
     attroff(COLOR_PAIR(3));
 }
