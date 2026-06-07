@@ -210,7 +210,7 @@ int main(void) {
     int ch;
 
     while (1) {
-        clear();
+        erase();
 
         int max_x, max_y;
         getmaxyx(stdscr, max_y, max_x);
