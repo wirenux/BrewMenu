@@ -178,6 +178,169 @@ void view_installed_packages(int max_y, int max_x) {
     free(packages);
 }
 
+void search_packages(int max_y, int max_x) {
+    erase();
+    draw_background(max_y, max_x, "BrewMenu - Search", "Type a package name and press Enter");
+    
+    WINDOW *search_win = create_shadowed_window(max_y, max_x, 5, 50, "Search Package");
+    mvwprintw(search_win, 1, 2, "Enter query: ");
+
+    curs_set(1);
+    echo();
+
+    char query[64] = {0};
+    wmove(search_win, 1, 15);
+    wrefresh(search_win);
+    wgetnstr(search_win, query, sizeof(query) - 1);
+
+    noecho();
+    curs_set(0);
+
+    query[strcspn(query, "\n")] = '\0';
+    if (strlen(query) == 0) {
+        mvwprintw(search_win, 3, 2, "Search cancelled!");
+        wrefresh(search_win);
+        getch();
+        delwin(search_win);
+        return;
+    }
+
+    mvwprintw(search_win, 3, 2, "Searching brew online...");
+    wrefresh(search_win);
+    
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "brew search /%s/", query);
+
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL) {
+        mvwprintw(search_win, 3, 2, "Error: Failed to run brew command");
+        wrefresh(search_win);
+        getch();
+        delwin(search_win);
+        return;
+    }
+
+    int capacity = 32;
+    int total_packages = 0;
+    char **packages = malloc(capacity * sizeof(char *));
+
+    if (packages == NULL) {
+        pclose(fp);
+        mvwprintw(search_win, 3, 2, "Error: Failed to allocate memory");
+        wrefresh(search_win);
+        getch();
+        delwin(search_win);
+        return;
+    }
+
+    char line[64];
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+
+        if (total_packages >= capacity) {
+            capacity *= 2;
+            char **temp = realloc(packages, capacity * sizeof(char *));
+            if (temp == NULL) {
+                pclose(fp);
+                for (int i = 0; i < total_packages; i++) {
+                    free(packages[i]);
+                }
+                free(packages);
+                mvwprintw(search_win, 3, 2, "Error: Failed to reallocate memory");
+                wrefresh(search_win);
+                getch();
+                delwin(search_win);
+                return;
+            }
+            packages = temp;
+        }
+
+        packages[total_packages] = strdup(line);
+        total_packages++;
+    }
+    pclose(fp);
+    delwin(search_win);
+
+    if (total_packages == 0) {
+        erase();
+        draw_background(max_y, max_x, "BrewMenu", "Press any key to return...");
+        WINDOW *err_win = create_shadowed_window(max_y, max_x, 5, 40, "Error");
+        mvwprintw(err_win, 2, (45 - 24) / 2, "No matching result found");
+        refresh();
+        wrefresh(err_win);
+        getch();
+        delwin(err_win);
+        free(packages);
+        return;
+    }
+
+    int selected_index = 0;
+    int scroll_offset = 0;
+    int ch;
+
+    while (1) {
+        erase();
+        getmaxyx(stdscr, max_y, max_x);
+
+        char title_buf[64];
+        snprintf(title_buf, sizeof(title_buf), "Search Result for '%s' (%d Found)", query, total_packages);
+        draw_background(max_y, max_x, title_buf, "Use Up/Down to scroll, 'q' to return to menu");
+
+        int list_h = max_y - 6;
+        int list_w = 60;
+        if (list_w > max_x - 4) {
+            list_w = max_x - 4;
+        }
+
+        WINDOW *list_win = create_shadowed_window(max_y, max_x, list_h, list_w, "Remote Packages");
+
+        int visible_rows = list_h - 2;
+
+        for (int i = 0; i < visible_rows; i++) {
+            int pkg_index = scroll_offset + i;
+
+            if (pkg_index >= total_packages) {
+                break;
+            }
+
+            if (pkg_index == selected_index) {
+                wattron(list_win, A_REVERSE);
+            }
+
+            mvwprintw(list_win, i + 1, 4, "%3d - [ %s ]", pkg_index + 1, packages[pkg_index]);
+
+            if (pkg_index == selected_index) {
+                wattroff(list_win, A_REVERSE);
+            }
+        }
+
+        refresh();
+        wrefresh(list_win);
+
+        ch = getch();
+        delwin(list_win);
+
+        if (ch == 'q') {
+            break;
+        } else if (ch == KEY_UP && selected_index > 0) {
+            selected_index--;
+            if (selected_index < scroll_offset) {
+                scroll_offset = selected_index;
+            }
+        } else if (ch == KEY_DOWN && selected_index < total_packages - 1) {
+            selected_index++;
+            if (selected_index >= scroll_offset + visible_rows) {
+                scroll_offset = selected_index - visible_rows + 1;
+            }
+        }
+    }
+
+    for (int i = 0; i < total_packages; i++) {
+        free(packages[i]);
+    }
+    free(packages);
+}
+
 int main(void) {
     initscr();
     cbreak();
@@ -244,7 +407,9 @@ int main(void) {
         } else if (ch == KEY_DOWN && selected_index < total_option - 1) {
             selected_index++;
         } else if (ch == '\n' ||ch == KEY_ENTER || ch == '\r') {
-            if (selected_index == 2) {
+            if (selected_index == 1) {
+                search_packages(max_y, max_x);
+            } else if (selected_index == 2) {
                 view_installed_packages(max_y, max_x);
             } else {
                 erase();
