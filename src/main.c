@@ -190,6 +190,9 @@ void search_packages(int max_y, int max_x) {
 
     char query[64] = {0};
     wmove(search_win, 1, 15);
+
+    refresh();
+
     wrefresh(search_win);
     wgetnstr(search_win, query, sizeof(query) - 1);
 
