@@ -221,7 +221,7 @@ int main(void) {
             if (selected_index == 2) {
                 view_installed_packages(max_y, max_x);
             } else {
-                clear();
+                erase();
                 draw_background(max_y, max_x, "BrewMenu", "Press any key to return...");
                 mvprintw(max_y / 2, (max_x - 24) / 2, "Featurne not yet implemented!");
                 refresh();
