@@ -471,7 +471,7 @@ int show_confirmation_popup(int max_y, int max_x, const char *pkg_name) {
 
     while (1) {
         mvwprintw(conf_win, 2, (pop_w - 30) / 2, "Uninstall this package?");
-        mvwprintw(conf_win, 2, (pop_w - (int)strlen(pkg_name) - 4) / 2, "[ %s ]", pkg_name);
+        mvwprintw(conf_win, 3, (pop_w - (int)strlen(pkg_name) - 4) / 2, "[ %s ]", pkg_name);
 
         // hightlight yes
         if (selected_choice == 0 ) {
@@ -479,7 +479,7 @@ int show_confirmation_popup(int max_y, int max_x, const char *pkg_name) {
         }
         mvwprintw(conf_win, 5, 10, "  YES  ");
         if (selected_choice == 0 ) {
-            wattron(conf_win, A_REVERSE);
+            wattroff(conf_win, A_REVERSE);
         }
 
         // hightlight no
@@ -488,7 +488,7 @@ int show_confirmation_popup(int max_y, int max_x, const char *pkg_name) {
         }
         mvwprintw(conf_win, 5, pop_w - 17, "  NO  ");
         if (selected_choice == 1 ) {
-            wattron(conf_win, A_REVERSE);
+            wattroff(conf_win, A_REVERSE);
         }
 
         refresh();
@@ -500,12 +500,152 @@ int show_confirmation_popup(int max_y, int max_x, const char *pkg_name) {
         } else if (ch == '\n' || ch == KEY_ENTER || ch == '\r') {
             break;
         } else if (ch == 'q') {
+            selected_choice = 1;
             break;
         }
     }
 
     delwin(conf_win);
     return (selected_choice == 0); // ret 1 if YES is chose
+}
+
+void select_package_to_uninstall(int max_y, int max_x) {
+    erase();
+    draw_background(max_y, max_x, "BrewMenu - Select Removal Target", "Fetching packages...");
+
+    WINDOW *load_win = create_shadowed_window(max_y, max_x, 5, 40, "Status");
+    mvwprintw(load_win, 2, (40 - 29) / 2, "Loading packages from brew...");
+    
+    refresh();
+    wrefresh(load_win);
+
+    int capacity = 32;
+    int total_packages = 0;
+    char **packages = malloc(capacity * sizeof(char *));
+
+    if (packages == NULL) {
+        mvwprintw(load_win, 2, (40 - 25) / 2, "Error: Failed to allocate memory");
+        getch();
+        return;
+    }
+
+    FILE *fp = popen("brew list -1", "r");
+    if (fp == NULL) {
+        mvwprintw(load_win, 2, (40 - 33) / 2, "Error: Failed to run brew command");
+        free(packages);
+        getch();
+        return;
+    }
+
+    char line[64];
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+
+        if (total_packages >= capacity) {
+            capacity *= 2;
+            char **temp = realloc(packages, capacity * sizeof(char *));
+            if (temp == NULL) {
+                pclose(fp);
+                for (int i = 0; i < total_packages; i++) {
+                    free(packages[i]);
+                }
+                free(packages);
+                mvwprintw(load_win, 2, (40 - 29) / 2, "Error: Failed to reallocate memory");
+                getch();
+                return;
+            }
+            packages = temp;
+        }
+        packages[total_packages] = strdup(line);
+        total_packages++;
+    }
+    pclose(fp);
+
+    delwin(load_win);
+
+    if (total_packages == 0) {
+        erase();
+        draw_background(max_y, max_x, "BrewMenu", "Press any key to return...");
+        WINDOW *err_win = create_shadowed_window(max_y, max_x, 5, 40, "Error");
+        mvwprintw(err_win, 2, (40 - 23) / 2, "No brew packages found");
+        refresh();
+        wrefresh(err_win);
+        getch();
+        delwin(err_win);
+        free(packages);
+        return;
+    }
+
+    int selected_index = 0;
+    int scroll_offset = 0;
+    int ch;
+
+    while (1) {
+        erase();
+        getmaxyx(stdscr, max_y, max_x);
+
+        char title_buf[64];
+        snprintf(title_buf, sizeof(title_buf), "Select package to Remove (%d Installed)", total_packages);
+        draw_background(max_y, max_x, title_buf, "Use Up/Down to scroll, [ENTER] to choose,'q' to return to menu");
+
+        int list_h = max_y - 6;
+        int list_w = 60;
+        if (list_w > max_x - 4) {
+            list_w = max_x - 4;
+        }
+
+        WINDOW *list_win = create_shadowed_window(max_y, max_x, list_h, list_w, "Uninstall Mode");
+
+        int visible_rows = list_h - 2;
+
+        for (int i = 0; i < visible_rows; i++) {
+            int pkg_index = scroll_offset + i;
+
+            if (pkg_index >= total_packages) {
+                break;
+            }
+
+            if (pkg_index == selected_index) {
+                wattron(list_win, A_REVERSE);
+            }
+
+            mvwprintw(list_win, i + 1, 4, "%3d - [ %s ]", pkg_index + 1, packages[pkg_index]);
+
+            if (pkg_index == selected_index) {
+                wattroff(list_win, A_REVERSE);
+            }
+        }
+
+        refresh();
+        wrefresh(list_win);
+
+        ch = getch();
+        delwin(list_win);
+
+        if (ch == 'q') {
+            break;
+        } else if (ch == KEY_UP && selected_index > 0) {
+            selected_index--;
+            if (selected_index < scroll_offset) {
+                scroll_offset = selected_index;
+            }
+        } else if (ch == KEY_DOWN && selected_index < total_packages - 1) {
+            selected_index++;
+            if (selected_index >= scroll_offset + visible_rows) {
+                scroll_offset = selected_index - visible_rows + 1;
+            }
+        } else if (ch == '\n' || ch == KEY_ENTER || ch == '\r') {
+            if (show_confirmation_popup(max_y, max_x, packages[selected_index])) {
+                uninstall_packages(max_y, max_x, packages[selected_index]);
+                break;
+            }
+        }
+    }
+
+    for (int i = 0; i < total_packages; i++) {
+        free(packages[i]);
+    }
+    free(packages);
 }
 
 int main(void) {
@@ -577,18 +717,8 @@ int main(void) {
                 search_packages(max_y, max_x);
             } else if (selected_index == 1) {
                 view_installed_packages(max_y, max_x);
-            } else {
-                erase();
-                draw_background(max_y, max_x, "BrewMenu", "Press any key to return...");
-
-                WINDOW *not_impl_win = create_shadowed_window(max_y, max_x, 5, 40, "Notice");
-
-                mvwprintw(not_impl_win, 2, (40 - 28) / 2, "Featurne not yet implemented!");
-                
-                refresh();
-                wrefresh(not_impl_win);
-                getch();
-                delwin(not_impl_win);
+            } else if (selected_index == 2) {
+                select_package_to_uninstall(max_y, max_x);
             }
         }
     }
