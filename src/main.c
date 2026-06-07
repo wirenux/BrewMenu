@@ -188,6 +188,9 @@ void install_packages(int max_y, int max_x, const char *pkg_name) {
     refresh();
     wrefresh(ins_win);
 
+    setenv("HOMEBREW_NO_ENV_HINTS", "1", 1);
+    setenv("HOMEBREW_NO_ANALYTICS", "1", 1);
+
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "brew install %s 2>&1", pkg_name);
 
