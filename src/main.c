@@ -178,6 +178,45 @@ void view_installed_packages(int max_y, int max_x) {
     free(packages);
 }
 
+void install_packages(int max_y, int max_x, const char *pkg_name) {
+    erase();
+    draw_background(max_y, max_x, "BrewMenu - Install", "Type a package name and press Enter");
+
+    WINDOW *ins_win = create_shadowed_window(max_y, max_x, 7, 50, "Installing Package");
+    mvwprintw(ins_win, 2, 4, "Package: %s", pkg_name);
+    mvwprintw(ins_win, 4, 4, "Status: Starting Homebrew...");
+    refresh();
+    wrefresh(ins_win);
+
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "brew install %s 2>&1", pkg_name);
+
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL) {
+        mvwprintw(ins_win, 4, 4, "Error: Failed to run brew command");
+        wrefresh(ins_win);
+        getch();
+        delwin(ins_win);
+        return;
+    }
+
+    char line[128];
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+
+        mvwprintw(ins_win, 4, 4, "");
+        mvwprintw(ins_win, 4, 4, "Status: %.42s", line);
+        wrefresh(ins_win);
+    }
+    pclose(fp);
+
+    mvwprintw(ins_win, 4, 4, "");
+    mvwprintw(ins_win, 4, 4, "Status: Finished! Press any key...");
+    getch();
+    delwin(ins_win);
+}
+
 void search_packages(int max_y, int max_x) {
     erase();
     draw_background(max_y, max_x, "BrewMenu - Search", "Type a package name and press Enter");
@@ -335,6 +374,8 @@ void search_packages(int max_y, int max_x) {
             if (selected_index >= scroll_offset + visible_rows) {
                 scroll_offset = selected_index - visible_rows + 1;
             }
+        } else if (ch == '\n' || ch == KEY_ENTER || ch == '\r') {
+            install_packages(max_y, max_x, packages[selected_index]);
         }
     }
 
