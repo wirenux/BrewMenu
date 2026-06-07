@@ -403,6 +403,111 @@ void search_packages(int max_y, int max_x) {
     free(packages);
 }
 
+void uninstall_packages(int max_y, int max_x, const char *pkg_name) {
+    erase();
+    draw_background(max_y, max_x, "BrewMenu - Uninstall", "Please wait for the remvoval to finish...");
+
+    WINDOW *un_win = create_shadowed_window(max_y, max_x, 7, 50, "Uninstalling Package");
+    mvwprintw(un_win, 2, 4, "Package: %s", pkg_name);
+    mvwprintw(un_win, 4, 4, "Status: Starting removal...");
+    refresh();
+    wrefresh(un_win);
+
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "brew uninstall %s 2>&1", pkg_name);
+
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL) {
+        mvwprintw(un_win, 4, 4, "Error: Failed to run brew command");
+        wrefresh(un_win);
+        getch();
+        delwin(un_win);
+        return;
+    }
+
+    char line[128];
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+
+        mvwprintw(un_win, 4, 4, "                                        ");
+        mvwprintw(un_win, 4, 4, "Status: %.42s", line);
+        wrefresh(un_win);
+    }
+    pclose(fp);
+
+    mvwprintw(un_win, 4, 4, "                                                          ");
+    
+    refresh();
+    wrefresh(un_win);
+    delwin(un_win);
+
+    int pop_h = 5;
+    int pop_w = 40;
+    WINDOW *pop_win = create_shadowed_window(max_y, max_x, pop_h, pop_w, "Success");
+
+    if (pop_win != NULL) {
+        const char *success_msg = "Package removed successfully!";
+        mvwprintw(pop_win, 2, (pop_w - (int)strlen(success_msg)) / 2, "%s", success_msg);
+
+        refresh();
+        wrefresh(pop_win);
+        getch();
+        delwin(pop_win);
+    }
+}
+
+int show_confirmation_popup(int max_y, int max_x, const char *pkg_name) {
+    int pop_h = 7;
+    int pop_w = 46;
+    WINDOW *conf_win = create_shadowed_window(max_y, max_x, pop_h, pop_w, "Confirmation");
+
+    if (conf_win == NULL) {
+        return 0;
+    }
+
+    int selected_choice = 1;
+    int ch;
+
+    while (1) {
+        mvwprintw(conf_win, 2, (pop_w - 30) / 2, "Uninstall this package?");
+        mvwprintw(conf_win, 2, (pop_w - (int)strlen(pkg_name) - 4) / 2, "[ %s ]", pkg_name);
+
+        // hightlight yes
+        if (selected_choice == 0 ) {
+            wattron(conf_win, A_REVERSE);
+        }
+        mvwprintw(conf_win, 5, 10, "  YES  ");
+        if (selected_choice == 0 ) {
+            wattron(conf_win, A_REVERSE);
+        }
+
+        // hightlight no
+        if (selected_choice == 1 ) {
+            wattron(conf_win, A_REVERSE);
+        }
+        mvwprintw(conf_win, 5, pop_w - 17, "  NO  ");
+        if (selected_choice == 1 ) {
+            wattron(conf_win, A_REVERSE);
+        }
+
+        refresh();
+        wrefresh(conf_win);
+
+        ch = getch();
+        if (ch == KEY_LEFT || ch == KEY_RIGHT || ch == '\t') {
+            selected_choice = !selected_choice;
+        } else if (ch == '\n' || ch == KEY_ENTER || ch == '\r') {
+            break;
+        } else if (ch == 'q') {
+            break;
+        }
+    }
+
+    delwin(conf_win);
+    return (selected_choice == 0); // ret 1 if YES is chose
+}
+
 int main(void) {
     initscr();
     cbreak();
