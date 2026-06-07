@@ -23,25 +23,53 @@ void draw_background(int max_y, int max_x, const char *title, const char *footer
     attroff(COLOR_PAIR(3));
 }
 
+WINDOW* create_shadowed_window(int max_y, int max_x, int height, int width, const char *title) {
+    int start_y = (max_y - height) / 2;
+    int start_x = (max_x - width) / 2;
+
+    attron(COLOR_PAIR(3));
+    for (int i = 0; i < height; i++) {
+        mvprintw(start_y + i + 1, start_x + width, "  ");
+    }
+    for (int i = 0; i < width + 1; i++) {
+        mvaddch(start_y + height, start_x + i + 1, ' ');
+    }
+    attroff(COLOR_PAIR(3));
+
+    WINDOW *win = newwin(height, width, start_y, start_x);
+    wbkgd(win, COLOR_PAIR(2));
+    box(win, 0, 0);
+
+    if (title != NULL) {
+        mvwprintw(win, 0, (width - (int)strlen(title) - 4) / 2, "[ %s ]", title);
+    }
+
+    return win;
+}
+
 void view_installed_packages(int max_y, int max_x) {
     erase();
     draw_background(max_y, max_x, "BrewMenu - Installed Packages", "Fetching packages...");
-    mvprintw(max_y / 2, (max_x - 22) / 2, "Loading packages from brew...");
+
+    WINDOW *load_win = create_shadowed_window(max_y, max_x, 5, 40, "Status");
+    mvwprintw(load_win, 2, (40 - 29) / 2, "Loading packages from brew...");
+    
     refresh();
+    wrefresh(load_win);
 
     int capacity = 32;
     int total_packages = 0;
     char **packages = malloc(capacity * sizeof(char *));
 
     if (packages == NULL) {
-        mvprintw(max_y / 2 + 1, (max_x - 30) / 2, "\e[1;31mError:\e[0m Failed to allocate memory");
+        mvwprintw(load_win, 2, (40 - 25) / 2, "Error: Failed to allocate memory");
         getch();
         return;
     }
 
     FILE *fp = popen("brew list -1", "r");
     if (fp == NULL) {
-        mvprintw(max_y / 2 + 1, (max_x - 32) / 2, "\e[1;31mError:\e[0m Failed to run brew command");
+        mvwprintw(load_win, 2, (40 - 33) / 2, "Error: Failed to run brew command");
         free(packages);
         getch();
         return;
@@ -60,7 +88,7 @@ void view_installed_packages(int max_y, int max_x) {
                     free(packages[i]);
                 }
                 free(packages);
-                mvprintw(max_y / 2 + 1, (max_x - 33) / 2, "\e[1;31mError:\e[0m Failed to reallocate memory");
+                mvwprintw(load_win, 2, (40 - 29) / 2, "Error: Failed to reallocate memory");
                 getch();
                 return;
             }
@@ -72,10 +100,18 @@ void view_installed_packages(int max_y, int max_x) {
     }
     pclose(fp);
 
+    delwin(load_win);
+
     if (total_packages == 0) {
-        mvprintw(max_y / 2 + 1, (max_x - 25) / 2, "\e[1;31mError:\e[0m No brew packages found");
-        free(packages);
+        erase();
+        draw_background(max_y, max_x, "BrewMenu", "Press any key to return...");
+        WINDOW *err_win = create_shadowed_window(max_y, max_x, 5, 40, "Error");
+        mvwprintw(err_win, 2, (40 - 23) / 2, "No brew packages found");
+        refresh();
+        wrefresh(err_win);
         getch();
+        delwin(err_win);
+        free(packages);
         return;
     }
 
@@ -91,7 +127,15 @@ void view_installed_packages(int max_y, int max_x) {
         snprintf(title_buf, sizeof(title_buf), "Installed Packages (Total: %d)", total_packages);
         draw_background(max_y, max_x, title_buf, "Use Up/Down to scroll, 'q' to return to menu");
 
-        int visible_rows = max_y - 3;
+        int list_h = max_y - 6;
+        int list_w = 60;
+        if (list_w > max_x - 4) {
+            list_w = max_x - 4;
+        }
+
+        WINDOW *list_win = create_shadowed_window(max_y, max_x, list_h, list_w, "Installed Packages");
+
+        int visible_rows = list_h - 2;
 
         for (int i = 0; i < visible_rows; i++) {
             int pkg_index = scroll_offset + i;
@@ -104,16 +148,18 @@ void view_installed_packages(int max_y, int max_x) {
                 attron(A_REVERSE);
             }
 
-            mvprintw(i + 2, 4, "%3d - [ %s ]", pkg_index + 1, packages[pkg_index]);
+            mvwprintw(list_win, i + 1, 4, "%3d - [ %s ]", pkg_index + 1, packages[pkg_index]);
 
             if (pkg_index == selected_index) {
-                attroff(A_REVERSE);
+                wattroff(list_win, A_REVERSE);
             }
         }
 
         refresh();
+        wrefresh(list_win);
 
         ch = getch();
+        delwin(list_win);
 
         if (ch == 'q') {
             break;
@@ -174,24 +220,8 @@ int main(void) {
         getmaxyx(stdscr, max_y, max_x);
 
         draw_background(max_y, max_x, "BrewMenu", "Use Arrow Keys to navigate, [ENTER] to select, 'q' to quit");
-        
-        int start_y = (max_y - MENU_HEIGHT) / 2;
-        int start_x = (max_x - MENU_WIDTH) / 2;
 
-        attron(COLOR_PAIR(3));
-        for (int i = 0; i < MENU_HEIGHT; i++) {
-            mvprintw(start_y + i + 1, start_x + MENU_WIDTH, "  "); // right shadow
-        }
-        for (int i = 0; i < MENU_WIDTH; i++) {
-            mvaddch(start_y + MENU_HEIGHT, start_x + i + 1, ' '); // right shadow
-        }
-        attroff(COLOR_PAIR(3));
-
-        WINDOW *menu_win = newwin(MENU_HEIGHT, MENU_WIDTH, start_y, start_x);
-        wbkgd(menu_win, COLOR_PAIR(2));
-        box(menu_win, 0, 0);
-
-        mvwprintw(menu_win, 0, (MENU_WIDTH - 13) / 2, "[ Main Menu ]");
+        WINDOW *menu_win = create_shadowed_window(max_y, max_x, MENU_HEIGHT, MENU_WIDTH, "Main Menu");
 
         for (int i = 0; i < total_option; i++) {
             if (i == selected_index) {
@@ -223,9 +253,15 @@ int main(void) {
             } else {
                 erase();
                 draw_background(max_y, max_x, "BrewMenu", "Press any key to return...");
-                mvprintw(max_y / 2, (max_x - 24) / 2, "Featurne not yet implemented!");
+
+                WINDOW *not_impl_win = create_shadowed_window(max_y, max_x, 5, 40, "Notice");
+
+                mvwprintw(not_impl_win, 2, (40 - 28) / 2, "Featurne not yet implemented!");
+                
                 refresh();
+                wrefresh(not_impl_win);
                 getch();
+                delwin(not_impl_win);
             }
         }
     }
