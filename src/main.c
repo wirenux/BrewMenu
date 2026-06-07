@@ -58,22 +58,33 @@ int main(void) {
     keypad(stdscr, TRUE);
 
     int selected_index = 0;
-
+    int scroll_offset = 0;
     int ch;
 
     while (1) {
         clear();
 
-        mvprintw(0, 2, "=== Brew Menu ===");
+        int max_x, max_y;
+        getmaxyx(stdscr, max_y, max_x);
 
-        for (int i = 0; i < total_packages; i++) {
-            if (i == selected_index) {
+        int visible_rows = max_y - 3;
+
+        mvprintw(0, 2, "=== Brew Menu (Total: %d) ===", total_packages);
+
+        for (int i = 0; i < visible_rows; i++) {
+            int pkg_index = scroll_offset + i;
+
+            if (pkg_index >= total_packages) {
+                break;
+            }
+
+            if (pkg_index == selected_index) {
                 attron(A_REVERSE); // highlight turn on
             }
 
-            mvprintw(i + 2, 2, "[ %s ]", packages[i]);
+            mvprintw(i + 2, 2, "%d - [ %s ]", pkg_index + 1 ,packages[pkg_index]); // index - [ pkg_name ]
 
-            if (i == selected_index) {
+            if (pkg_index == selected_index) {
                 attroff(A_REVERSE); // highlight turn off
             }
         }
@@ -86,8 +97,16 @@ int main(void) {
             break;
         } else if (ch == KEY_UP && selected_index > 0) {
             selected_index--;
+
+            if (selected_index < scroll_offset) {
+                scroll_offset = selected_index;
+            }
         } else if (ch == KEY_DOWN && selected_index < total_packages - 1) {
             selected_index++;
+
+            if (selected_index >= scroll_offset + visible_rows) {
+                scroll_offset = selected_index - visible_rows + 1;
+            }
         }
     }
 
