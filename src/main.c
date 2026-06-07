@@ -205,7 +205,7 @@ void install_packages(int max_y, int max_x, const char *pkg_name) {
     while (fgets(line, sizeof(line), fp) != NULL) {
         line[strcspn(line, "\n")] = '\0';
 
-        mvwprintw(ins_win, 4, 4, "");
+        mvwprintw(ins_win, 4, 4, "                                        ");
         mvwprintw(ins_win, 4, 4, "Status: %.42s", line);
         wrefresh(ins_win);
     }
@@ -406,13 +406,12 @@ int main(void) {
     wbkgd(stdscr, COLOR_PAIR(1));
 
     char *main_option[] = {
-        "Install packages",
-        "Search packages",
+        "Search & Install packages",
         "List installed packages",
         "Uninstall packages"
     };
 
-    int total_option = 4;
+    int total_option = 3;
     int selected_index = 0;
     int ch;
 
@@ -451,7 +450,7 @@ int main(void) {
         } else if (ch == KEY_DOWN && selected_index < total_option - 1) {
             selected_index++;
         } else if (ch == '\n' ||ch == KEY_ENTER || ch == '\r') {
-            if (selected_index == 1) {
+            if (selected_index == 0) {
                 search_packages(max_y, max_x);
             } else if (selected_index == 2) {
                 view_installed_packages(max_y, max_x);
