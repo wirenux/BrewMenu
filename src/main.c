@@ -145,7 +145,7 @@ void view_installed_packages(int max_y, int max_x) {
             }
 
             if (pkg_index == selected_index) {
-                attron(A_REVERSE);
+                wattron(list_win, A_REVERSE);
             }
 
             mvwprintw(list_win, i + 1, 4, "%3d - [ %s ]", pkg_index + 1, packages[pkg_index]);
